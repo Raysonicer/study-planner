@@ -1,0 +1,13 @@
+services:
+  studypilot:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - SP_DATA_DIR=/app/data
+      - SP_DOCS_DIR=
+    restart: unless-stopped

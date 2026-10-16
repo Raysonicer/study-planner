@@ -1,0 +1,9 @@
+-- 000001_init.down.sql
+
+DROP TABLE IF EXISTS reviews;
+DROP TABLE IF EXISTS blocks;
+DROP TABLE IF EXISTS task_events;
+DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS goal_checkins;
+DROP TABLE IF EXISTS goals;
+DROP TABLE IF EXISTS settings;

@@ -1,0 +1,1226 @@
+openapi: 3.0.3
+info:
+  title: StudyPilot API
+  version: 0.1.0
+  description: |
+    学习任务计划系统后端接口（P0 范围）。
+    约定：
+    - 日期一律为本地日期字符串 YYYY-MM-DD；
+    - 时间一律为当日分钟数（0-1439）；
+    - 周级实体以 week_start（周一日期）为键。
+servers:
+  - url: /api/v1
+tags:
+  - name: goals
+    description: 学习目标与打卡
+  - name: tasks
+    description: 任务与子任务分解
+  - name: blocks
+    description: 日程时间块
+  - name: dashboard
+    description: 今日面板聚合
+  - name: stats
+    description: 统计分析
+  - name: reviews
+    description: 周复盘
+  - name: settings
+    description: 系统设置
+paths:
+  /goals:
+    get:
+      tags: [goals]
+      summary: 查询目标
+      parameters:
+        - name: goal_type
+          in: query
+          schema:
+            type: string
+            enum: [day, week]
+        - name: date
+          in: query
+          description: 日目标所属日期
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+        - name: week_start
+          in: query
+          description: 周目标所属周的周一
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, done, archived]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Goal'
+    post:
+      tags: [goals]
+      summary: 创建目标
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoalInput'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Goal'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /checkins:
+    get:
+      tags: [goals]
+      summary: 查询区间内打卡记录（前端渲染打卡状态用，避免 N+1）
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GoalCheckin'
+  /goals/{goal_id}:
+    parameters:
+      - name: goal_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [goals]
+      summary: 获取目标详情
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Goal'
+        '404':
+          description: 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [goals]
+      summary: 更新目标
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoalInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Goal'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [goals]
+      summary: 删除目标（连带打卡记录）
+      responses:
+        '204':
+          description: 已删除
+  /goals/{goal_id}/checkin:
+    parameters:
+      - name: goal_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [goals]
+      summary: 打卡
+      description: 日目标按 date 打卡；打卡型周目标按 checkin_date 打卡（须落在绑定周内）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckinInput'
+      responses:
+        '201':
+          description: 打卡成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalCheckin'
+        '400':
+          description: 参数错误（如跨周打卡）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [goals]
+      summary: 撤销打卡
+      parameters:
+        - name: checkin_date
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+      responses:
+        '204':
+          description: 已撤销
+  /tasks:
+    get:
+      tags: [tasks]
+      summary: 查询任务（平铺返回，前端组树）
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [todo, doing, done]
+        - name: goal_id
+          in: query
+          schema:
+            type: integer
+        - name: parent_id
+          in: query
+          schema:
+            type: integer
+        - name: tag
+          in: query
+          schema:
+            type: string
+        - name: due_from
+          in: query
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+        - name: due_to
+          in: query
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+        - name: q
+          in: query
+          description: 标题关键词
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+    post:
+      tags: [tasks]
+      summary: 创建任务
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskInput'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /tasks/batch:
+    post:
+      tags: [tasks]
+      summary: 批量创建子任务（换行拆分，去空行）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchTasksInput'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /tasks/reorder:
+    patch:
+      tags: [tasks]
+      summary: 同层级拖动排序
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderInput'
+      responses:
+        '204':
+          description: 已更新
+  /tasks/{task_id}:
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [tasks]
+      summary: 任务详情
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [tasks]
+      summary: 更新任务
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: 参数错误（如 parent_id 指向自身或后代）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [tasks]
+      summary: 删除任务（递归删除子任务，时间块关联置空）
+      responses:
+        '204':
+          description: 已删除
+  /tasks/{task_id}/complete:
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [tasks]
+      summary: 完成任务（写入 done 事件）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /tasks/{task_id}/reopen:
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [tasks]
+      summary: 重开任务（写入 reopen 事件，状态回 todo）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /blocks:
+    get:
+      tags: [blocks]
+      summary: 查询时间块
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+      responses:
+        '200':
+          description: OK（含区间内全部块）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Block'
+    post:
+      tags: [blocks]
+      summary: 创建时间块
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockInput'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Block'
+        '400':
+          description: 参数错误（end_min <= start_min 等）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /blocks/{block_id}:
+    parameters:
+      - name: block_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    put:
+      tags: [blocks]
+      summary: 更新时间块（含拖动平移）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Block'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [blocks]
+      summary: 删除时间块
+      responses:
+        '204':
+          description: 已删除
+  /dashboard:
+    get:
+      tags: [dashboard]
+      summary: 今日面板聚合
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+  /stats/daily:
+    get:
+      tags: [stats]
+      summary: 日统计
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsDaily'
+  /stats/weekly:
+    get:
+      tags: [stats]
+      summary: 周统计（含近 8 周趋势）
+      parameters:
+        - name: week_start
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsWeekly'
+  /stats/heatmap:
+    get:
+      tags: [stats]
+      summary: 热力图数据
+      parameters:
+        - name: start
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+        - name: end
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Heatmap'
+  /reviews:
+    get:
+      tags: [reviews]
+      summary: 复盘列表（按周倒序）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Review'
+  /reviews/{week_start}:
+    parameters:
+      - name: week_start
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+    get:
+      tags: [reviews]
+      summary: 获取周复盘（不存在返回 404，前端据此新建）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '404':
+          description: 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [reviews]
+      summary: 创建或更新周复盘（upsert）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+    delete:
+      tags: [reviews]
+      summary: 删除周复盘
+      responses:
+        '204':
+          description: 已删除
+  /reviews/{week_start}/snapshot:
+    parameters:
+      - name: week_start
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+    post:
+      tags: [reviews]
+      summary: 生成统计快照（保存复盘时冻结写入）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+  /export:
+    get:
+      tags: [settings]
+      summary: 全量导出（JSON，往返无损）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /export/import:
+    post:
+      tags: [settings]
+      summary: 全量导入（覆盖当前数据，事务）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 导入成功
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /settings:
+    get:
+      tags: [settings]
+      summary: 读取设置（key-value 对象）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+    put:
+      tags: [settings]
+      summary: 批量更新设置
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+components:
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    Goal:
+      type: object
+      required: [id, title, goal_type, checkin_days, status, note, sort, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        goal_type:
+          type: string
+          enum: [day, week]
+        goal_mode:
+          type: string
+          enum: [daily, once]
+          default: daily
+          description: daily=每日打卡型；once=一次性（仅周目标可用）
+        date:
+          type: string
+          nullable: true
+          description: day 型绑定日期
+        week_start:
+          type: string
+          nullable: true
+          description: week 型绑定周的周一
+        checkin_days:
+          type: integer
+          minimum: 1
+          maximum: 7
+        status:
+          type: string
+          enum: [active, done, archived]
+        note:
+          type: string
+        sort:
+          type: integer
+        completed_at:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+        updated_at:
+          type: string
+    GoalInput:
+      type: object
+      required: [title, goal_type]
+      properties:
+        title:
+          type: string
+        goal_type:
+          type: string
+          enum: [day, week]
+        goal_mode:
+          type: string
+          enum: [daily, once]
+          default: daily
+        status:
+          type: string
+          enum: [active, done, archived]
+          description: 仅更新时使用；一次性周目标经 status=done 完成，归档经 status=archived
+        date:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        week_start:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        checkin_days:
+          type: integer
+          minimum: 1
+          maximum: 7
+          default: 5
+        note:
+          type: string
+        sort:
+          type: integer
+    GoalCheckin:
+      type: object
+      required: [id, goal_id, checkin_date, created_at]
+      properties:
+        id:
+          type: integer
+        goal_id:
+          type: integer
+        checkin_date:
+          type: string
+        created_at:
+          type: string
+    CheckinInput:
+      type: object
+      properties:
+        checkin_date:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: 不传默认今天（服务端按本地日期）
+    Task:
+      type: object
+      required: [id, title, note, status, priority, tags, sort, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        note:
+          type: string
+        parent_id:
+          type: integer
+          nullable: true
+        goal_id:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [todo, doing, done]
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 3
+        due_date:
+          type: string
+          nullable: true
+        est_minutes:
+          type: integer
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        sort:
+          type: integer
+        completed_at:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+        updated_at:
+          type: string
+    TaskInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        note:
+          type: string
+        parent_id:
+          type: integer
+          nullable: true
+        goal_id:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [todo, doing, done]
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 3
+        due_date:
+          type: string
+          nullable: true
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        est_minutes:
+          type: integer
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        sort:
+          type: integer
+    BatchTasksInput:
+      type: object
+      required: [lines]
+      properties:
+        parent_id:
+          type: integer
+          nullable: true
+        goal_id:
+          type: integer
+          nullable: true
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: string
+    ReorderInput:
+      type: object
+      required: [ordered_ids]
+      properties:
+        parent_id:
+          type: integer
+          nullable: true
+          description: null 表示根级
+        ordered_ids:
+          type: array
+          items:
+            type: integer
+    Block:
+      type: object
+      required: [id, block_date, start_min, end_min, title, color, note, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        block_date:
+          type: string
+        start_min:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        end_min:
+          type: integer
+          minimum: 1
+          maximum: 1440
+        title:
+          type: string
+        task_id:
+          type: integer
+          nullable: true
+        color:
+          type: string
+        note:
+          type: string
+        created_at:
+          type: string
+        updated_at:
+          type: string
+    BlockInput:
+      type: object
+      required: [block_date, start_min, end_min, title]
+      properties:
+        block_date:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        start_min:
+          type: integer
+          minimum: 0
+          maximum: 1439
+        end_min:
+          type: integer
+          minimum: 1
+          maximum: 1440
+        title:
+          type: string
+        task_id:
+          type: integer
+          nullable: true
+        color:
+          type: string
+        note:
+          type: string
+    BlockView:
+      allOf:
+        - $ref: '#/components/schemas/Block'
+        - type: object
+          properties:
+            done:
+              type: boolean
+              description: 关联任务是否已完成（无关联为 false）
+    Dashboard:
+      type: object
+      required: [date, scheduled_minutes, overdue_count, day_goals, tasks_due, blocks]
+      properties:
+        date:
+          type: string
+        task_completion_rate:
+          type: number
+          nullable: true
+        goal_achievement_rate:
+          type: number
+          nullable: true
+        scheduled_minutes:
+          type: integer
+        overdue_count:
+          type: integer
+        day_goals:
+          type: array
+          items:
+            $ref: '#/components/schemas/Goal'
+        tasks_due:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlockView'
+    StatsDaily:
+      type: object
+      required: [date, scheduled_minutes, completed_block_minutes, overdue_count, task_total, task_done, goal_total, goal_done]
+      properties:
+        date:
+          type: string
+        task_completion_rate:
+          type: number
+          nullable: true
+        goal_achievement_rate:
+          type: number
+          nullable: true
+        scheduled_minutes:
+          type: integer
+        completed_block_minutes:
+          type: integer
+        overdue_count:
+          type: integer
+        task_total:
+          type: integer
+        task_done:
+          type: integer
+        goal_total:
+          type: integer
+        goal_done:
+          type: integer
+    TrendPoint:
+      type: object
+      required: [week_start, task_rate, goal_rate]
+      properties:
+        week_start:
+          type: string
+        task_rate:
+          type: number
+          nullable: true
+        goal_rate:
+          type: number
+          nullable: true
+    DistItem:
+      type: object
+      required: [label, done, total]
+      properties:
+        label:
+          type: string
+        done:
+          type: integer
+        total:
+          type: integer
+    StatsWeekly:
+      type: object
+      required: [week_start, week_end, task_total, task_done, overdue_count, goal_total, goal_done, scheduled_minutes, completed_block_minutes, trend, by_goal, by_tag, unfinished]
+      properties:
+        week_start:
+          type: string
+        week_end:
+          type: string
+        task_completion_rate:
+          type: number
+          nullable: true
+        goal_achievement_rate:
+          type: number
+          nullable: true
+        task_total:
+          type: integer
+        task_done:
+          type: integer
+        overdue_count:
+          type: integer
+        goal_total:
+          type: integer
+        goal_done:
+          type: integer
+        scheduled_minutes:
+          type: integer
+        completed_block_minutes:
+          type: integer
+        trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrendPoint'
+        by_goal:
+          type: array
+          items:
+            $ref: '#/components/schemas/DistItem'
+        by_tag:
+          type: array
+          items:
+            $ref: '#/components/schemas/DistItem'
+        unfinished:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+    HeatmapCell:
+      type: object
+      required: [date, task_total, task_done, goal_total, goal_done]
+      properties:
+        date:
+          type: string
+        score:
+          type: number
+          nullable: true
+          description: 综合完成度 0-1；当日无任务且无目标为 null
+        task_rate:
+          type: number
+          nullable: true
+        goal_rate:
+          type: number
+          nullable: true
+        task_total:
+          type: integer
+        task_done:
+          type: integer
+        goal_total:
+          type: integer
+        goal_done:
+          type: integer
+    Heatmap:
+      type: object
+      required: [start, end, cells]
+      properties:
+        start:
+          type: string
+        end:
+          type: string
+        cells:
+          type: array
+          items:
+            $ref: '#/components/schemas/HeatmapCell'
+    Snapshot:
+      type: object
+      required: [generated_at, week_start, week_end, task_total, task_done, overdue_count, goal_total, goal_done, checkin_total, checkin_days_total, scheduled_minutes, completed_block_minutes, unfinished_tasks, by_tag]
+      properties:
+        generated_at:
+          type: string
+        week_start:
+          type: string
+        week_end:
+          type: string
+        task_completion_rate:
+          type: number
+          nullable: true
+        goal_achievement_rate:
+          type: number
+          nullable: true
+        task_total:
+          type: integer
+        task_done:
+          type: integer
+        overdue_count:
+          type: integer
+        goal_total:
+          type: integer
+        goal_done:
+          type: integer
+        checkin_total:
+          type: integer
+          description: 本周实际打卡次数
+        checkin_days_total:
+          type: integer
+          description: 打卡型周目标应打卡天数合计
+        scheduled_minutes:
+          type: integer
+        completed_block_minutes:
+          type: integer
+        unfinished_tasks:
+          type: array
+          items:
+            type: string
+          description: 未完成任务标题清单
+        by_tag:
+          type: array
+          items:
+            $ref: '#/components/schemas/DistItem'
+    Review:
+      type: object
+      required: [id, week_start, title, content_md, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        week_start:
+          type: string
+        title:
+          type: string
+        content_md:
+          type: string
+        stats_snapshot:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/Snapshot'
+        created_at:
+          type: string
+        updated_at:
+          type: string
+    ReviewInput:
+      type: object
+      properties:
+        title:
+          type: string
+        content_md:
+          type: string
+        stats_snapshot:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/Snapshot'
+          description: 保存复盘时前端将快照一并提交并冻结
