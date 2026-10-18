@@ -1,4 +1,5 @@
-import { http } from './client'
+import { local } from './client'
+import * as svc from '@/local/goals'
 import type { Goal, GoalCheckin, GoalInput } from '@/types/api'
 
 export function listGoals(params: {
@@ -7,29 +8,29 @@ export function listGoals(params: {
   week_start?: string
   status?: string
 } = {}) {
-  return http.get<Goal[]>('/goals', { params })
+  return local<Goal[]>(() => svc.listGoals(params))
 }
 
 export function createGoal(input: GoalInput) {
-  return http.post<Goal>('/goals', input)
+  return local<Goal>(() => svc.createGoal(input))
 }
 
 export function updateGoal(id: number, input: GoalInput) {
-  return http.put<Goal>(`/goals/${id}`, input)
+  return local<Goal>(() => svc.updateGoal(id, input))
 }
 
 export function deleteGoal(id: number) {
-  return http.delete(`/goals/${id}`)
+  return local<void>(() => svc.deleteGoal(id))
 }
 
 export function checkin(id: number, checkinDate?: string) {
-  return http.post<GoalCheckin>(`/goals/${id}/checkin`, checkinDate ? { checkin_date: checkinDate } : {})
+  return local<GoalCheckin>(() => svc.checkin(id, checkinDate))
 }
 
 export function uncheckin(id: number, checkinDate?: string) {
-  return http.delete(`/goals/${id}/checkin`, { params: { checkin_date: checkinDate } })
+  return local<void>(() => svc.uncheckin(id, checkinDate))
 }
 
 export function listCheckins(from: string, to: string) {
-  return http.get<GoalCheckin[]>('/checkins', { params: { from, to } })
+  return local<GoalCheckin[]>(() => svc.listCheckins(from, to))
 }

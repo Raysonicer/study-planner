@@ -1,4 +1,4 @@
-import { http } from './client'
+import { local } from './client'
 
 export interface Health {
   status: string
@@ -6,5 +6,5 @@ export interface Health {
 }
 
 export function getHealth() {
-  return http.get<Health>('/healthz')
+  return local<Health>(async () => ({ status: 'ok', version: '0.2.0-local' }))
 }

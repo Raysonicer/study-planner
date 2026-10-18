@@ -114,7 +114,7 @@ function onFilePicked() {
       <template #header>数据</template>
       <el-form label-width="120px">
         <el-form-item label="存储位置">
-          <el-text>data/app.db（SQLite 单文件，启动时自动备份 14 份到 data/backups）</el-text>
+          <el-text>浏览器 IndexedDB（本浏览器内独立存储，请定期用下方「导出 JSON」备份）</el-text>
         </el-form-item>
         <el-form-item label="备份与迁移">
           <el-button @click="downloadExport"><el-icon><Download /></el-icon>导出 JSON</el-button>

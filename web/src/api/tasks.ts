@@ -1,4 +1,5 @@
-import { http } from './client'
+import { local } from './client'
+import * as svc from '@/local/tasks'
 import type { Task, TaskInput } from '@/types/api'
 
 export function listTasks(params: {
@@ -10,33 +11,33 @@ export function listTasks(params: {
   due_to?: string
   q?: string
 } = {}) {
-  return http.get<Task[]>('/tasks', { params })
+  return local<Task[]>(() => svc.listTasks(params))
 }
 
 export function createTask(input: TaskInput) {
-  return http.post<Task>('/tasks', input)
+  return local<Task>(() => svc.createTask(input))
 }
 
 export function updateTask(id: number, input: TaskInput) {
-  return http.put<Task>(`/tasks/${id}`, input)
+  return local<Task>(() => svc.updateTask(id, input))
 }
 
 export function deleteTask(id: number) {
-  return http.delete(`/tasks/${id}`)
+  return local<void>(() => svc.deleteTask(id))
 }
 
 export function completeTask(id: number) {
-  return http.post<Task>(`/tasks/${id}/complete`)
+  return local<Task>(() => svc.completeTask(id))
 }
 
 export function reopenTask(id: number) {
-  return http.post<Task>(`/tasks/${id}/reopen`)
+  return local<Task>(() => svc.reopenTask(id))
 }
 
 export function batchTasks(parentId: number | null, goalId: number | null, lines: string[]) {
-  return http.post<Task[]>('/tasks/batch', { parent_id: parentId, goal_id: goalId, lines })
+  return local<Task[]>(() => svc.batchTasks(parentId, goalId, lines))
 }
 
 export function reorderTasks(parentId: number | null, orderedIds: number[]) {
-  return http.patch('/tasks/reorder', { parent_id: parentId, ordered_ids: orderedIds })
+  return local<void>(() => svc.reorderTasks(parentId, orderedIds))
 }

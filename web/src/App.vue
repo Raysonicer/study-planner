@@ -31,7 +31,7 @@ const menus = [
             <span>{{ m.title }}</span>
           </el-menu-item>
         </el-menu>
-        <div class="aside-foot">v0.1.0 · 数据本地存储</div>
+        <div class="aside-foot">v0.2.0 · 数据存于浏览器</div>
       </el-aside>
       <el-main class="main">
         <router-view />
