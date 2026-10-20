@@ -10,7 +10,7 @@ import * as exp from '@/local/export'
 import * as settings from '@/local/settings'
 import { LocalError } from '@/local/errors'
 import { today, addDays, weekdayOf } from '@/local/time'
-import type { Goal, Task } from '@/types/api'
+import type { Goal, Task, TaskInput } from '@/types/api'
 
 function currentMonday(): string {
   let d = today()
@@ -302,3 +302,19 @@ describe('export', () => {
     await expect(stats.weeklyStats(sunday)).resolves.toBeTruthy()
   })
 })
+
+describe('regression', () => {
+  it('响应式 Proxy 入参可正常写入（DataCloneError 回归）', async () => {
+    // 模拟 Vue reactive 表单：整个对象及 tags 数组都是 Proxy
+    const form = new Proxy({ title: '代理任务', note: '', tags: ['vue'], due_date: null, est_minutes: null, parent_id: null, goal_id: null }, {})
+    const t = await tasks.createTask(form as unknown as TaskInput)
+    expect(t.title).toBe('代理任务')
+    const got = await tasks.getTask(t.id)
+    expect(got.tags).toEqual(['vue'])
+
+    const gform = new Proxy({ title: '代理目标', goal_type: 'day', goal_mode: 'daily', date: today(), week_start: null, checkin_days: 5 }, {})
+    const g = await goals.createGoal(gform as unknown as Parameters<typeof goals.createGoal>[0])
+    expect(g.title).toBe('代理目标')
+  })
+})
+

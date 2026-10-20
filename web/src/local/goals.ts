@@ -1,5 +1,6 @@
 import { db, type GoalRow, type GoalCheckinRow } from '@/db/db'
 import { errConflict, errInvalid, errNotFound } from './errors'
+import { plain } from './util'
 import { today, nowString, validDate, weekEndDate, isWeekStart } from './time'
 import { getWeekStartDay } from './settings'
 import type { Goal, GoalCheckin, GoalInput } from '@/types/api'
@@ -195,4 +196,5 @@ export async function listCheckins(from: string, to: string): Promise<GoalChecki
   rows.sort((a, b) => (a.checkin_date < b.checkin_date ? -1 : a.checkin_date > b.checkin_date ? 1 : a.id! - b.id!))
   return rows.map((r) => ({ id: r.id!, goal_id: r.goal_id, checkin_date: r.checkin_date, created_at: r.created_at }))
 }
+
 

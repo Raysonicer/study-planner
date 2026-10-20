@@ -1,5 +1,6 @@
 import { db, type BlockRow } from '@/db/db'
 import { errInvalid, errNotFound } from './errors'
+import { plain } from './util'
 import { nowString, validDate } from './time'
 import type { Block } from '@/types/api'
 
@@ -78,3 +79,4 @@ export async function deleteBlock(id: number): Promise<void> {
   await getBlock(id)
   await db.blocks.delete(id)
 }
+

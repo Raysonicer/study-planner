@@ -1,5 +1,6 @@
 import { db, type ReviewRow } from '@/db/db'
 import { errInvalid, errNotFound } from './errors'
+import { plain } from './util'
 import { nowString, validDate, isWeekStart } from './time'
 import { getWeekStartDay } from './settings'
 import type { Review, Snapshot } from '@/types/api'
@@ -60,3 +61,4 @@ export async function deleteReview(weekStart: string): Promise<void> {
   await getReview(weekStart)
   await db.reviews.where('week_start').equals(weekStart).delete()
 }
+
