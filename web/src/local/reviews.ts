@@ -31,6 +31,7 @@ export async function getReview(weekStart: string): Promise<Review> {
 
 // UpsertReview 按周创建或更新复盘（快照随保存冻结）。
 export async function upsertReview(weekStart: string, p: ReviewParams): Promise<Review> {
+  p = plain(p)
   if (!validDate(weekStart) || !isWeekStart(weekStart, await getWeekStartDay())) {
     throw errInvalid('week_start 必须是周一日期')
   }

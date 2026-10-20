@@ -307,6 +307,8 @@ describe('regression', () => {
   it('响应式 Proxy 入参可正常写入（DataCloneError 回归）', async () => {
     // 模拟 Vue reactive 表单：整个对象及 tags 数组都是 Proxy
     const form = new Proxy({ title: '代理任务', note: '', tags: ['vue'], due_date: null, est_minutes: null, parent_id: null, goal_id: null }, {})
+    // 前置断言：该对象确实无法被浏览器/Node 原生结构化克隆（否则测不出回归）
+    expect(() => structuredClone(form)).toThrow()
     const t = await tasks.createTask(form as unknown as TaskInput)
     expect(t.title).toBe('代理任务')
     const got = await tasks.getTask(t.id)

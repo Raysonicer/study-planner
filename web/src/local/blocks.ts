@@ -48,6 +48,7 @@ async function assertTaskExists(taskID: number | null | undefined): Promise<void
 }
 
 export async function createBlock(p: BlockParams): Promise<Block> {
+  p = plain(p)
   validateBlockParams(p)
   await assertTaskExists(p.task_id)
   const now = nowString()
@@ -68,6 +69,7 @@ export async function createBlock(p: BlockParams): Promise<Block> {
 
 export async function updateBlock(id: number, p: BlockParams): Promise<Block> {
   const cur = await getBlock(id)
+  p = plain(p)
   validateBlockParams(p)
   await assertTaskExists(p.task_id)
   const row: BlockRow = { ...cur, ...p, task_id: p.task_id ?? null, color: p.color ?? '', note: p.note ?? '', updated_at: nowString() }

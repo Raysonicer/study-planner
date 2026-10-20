@@ -69,7 +69,7 @@ async function writeEvent(taskID: number, typ: 'created' | 'done' | 'reopen'): P
 }
 
 export async function createTask(p: TaskInput): Promise<Task> {
-  const params: TaskInput = { ...p, status: p.status ?? 'todo', priority: p.priority ?? 1 }
+  const params: TaskInput = { ...plain(p), status: p.status ?? 'todo', priority: p.priority ?? 1 }
   validateTaskParams(params)
   if (params.parent_id != null) {
     await getTask(params.parent_id) // 父任务不存在 → not_found（Go 返回 invalid，这里与前端提示兼容）
@@ -102,7 +102,7 @@ export async function createTask(p: TaskInput): Promise<Task> {
 export async function updateTask(id: number, p: TaskInput): Promise<Task> {
   const cur = await getTask(id)
   const params: TaskInput = {
-    ...p,
+    ...plain(p),
     status: p.status ?? cur.status,
     priority: p.priority ?? cur.priority,
   }

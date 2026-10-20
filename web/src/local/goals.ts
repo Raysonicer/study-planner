@@ -90,7 +90,7 @@ function applyGoal(p: GoalParams, g: GoalRow): void {
 }
 
 export async function createGoal(p: GoalParams): Promise<Goal> {
-  const params: GoalParams = { ...p, goal_mode: p.goal_mode || 'daily', checkin_days: p.checkin_days ?? 5 }
+  const params: GoalParams = { ...plain(p), goal_mode: p.goal_mode || 'daily', checkin_days: p.checkin_days ?? 5 }
   await validateGoal(params)
   const now = nowString()
   const g: GoalRow = {
@@ -115,7 +115,7 @@ export async function createGoal(p: GoalParams): Promise<Goal> {
 export async function updateGoal(id: number, p: GoalParams): Promise<Goal> {
   const g = await getGoal(id)
   const params: GoalParams = {
-    ...p,
+    ...plain(p),
     goal_mode: p.goal_mode || g.goal_mode,
     checkin_days: p.checkin_days ?? g.checkin_days,
     status: p.status ?? g.status,
