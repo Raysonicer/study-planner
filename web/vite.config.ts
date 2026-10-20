@@ -11,6 +11,7 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: { clientsClaim: true, skipWaiting: true },
       manifest: {
         name: 'StudyPilot · 学习任务计划',
         short_name: 'StudyPilot',

@@ -31,7 +31,7 @@ const menus = [
             <span>{{ m.title }}</span>
           </el-menu-item>
         </el-menu>
-        <div class="aside-foot">v0.2.1 · 数据存于浏览器</div>
+        <div class="aside-foot">v0.2.2 · 数据存于浏览器</div>
       </el-aside>
       <el-main class="main">
         <router-view />
@@ -223,4 +223,5 @@ html.dark .aside .el-menu-item.is-active {
   }
 }
 </style>
+
 
